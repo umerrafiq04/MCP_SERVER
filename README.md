@@ -4,17 +4,23 @@
 The MCP Server is the execution layer of the Model Context Protocol architecture.  
 It exposes structured tools that can be safely executed by an MCP Client through the MCP protocol.
 
-This repository contains all tool implementations such as file operations and expense management.
+This repository contains tool implementations for:
+
+- Desktop file operations
+- Expense database management
+- PDF document tools
+
+The MCP Server focuses purely on **tool execution and safety**, while the MCP Client handles **LLM reasoning and tool selection**.
 
 ---
 
 # 🏗️ Role in Architecture
 
-The MCP Server does NOT contain LLM logic.  
-It only defines tools and safely executes them.
+The MCP Server **does not contain LLM logic**.
+
+Its responsibility is to expose structured tools that can be executed by an MCP Client.
 
 ```
-
 User
 ↓
 Frontend (Streamlit)
@@ -24,11 +30,9 @@ FastAPI Backend
 MCP Client (LLM + Tool Selection)
 ↓
 MCP Server (Tool Execution)
+```
 
-````
-
-The MCP Client decides *what* tool to call.  
-The MCP Server performs the actual execution.
+The MCP Client decides **which tool to call**, and the MCP Server performs the **actual execution**.
 
 ---
 
@@ -38,96 +42,288 @@ The MCP Server:
 
 - Registers tools using `@mcp.tool()`
 - Validates inputs strictly
-- Prevents unsafe file access
+- Restricts file system access
+- Prevents unsafe file operations
 - Executes domain-specific logic
-- Returns structured responses
+- Returns structured outputs
+
+The server acts as a **secure execution layer between AI reasoning and real-world operations**.
+
+---
+
+# 📦 Project Structure
+
+The MCP Server follows a **modular tool architecture**, where each domain has its own tool module.
+
+```
+MCP_SERVER/
+│
+├── main.py                # MCP server entry point
+│
+└── app/
+    ├── desktop_tools.py   # Desktop file operations
+    ├── expense_tools.py   # Expense tracking tools
+    └── pdf_tools.py       # PDF reading and management tools
+```
+
+### Architecture Design
+
+- **main.py** initializes the MCP server
+- Each module registers its own tools
+- Tools are grouped by domain
+- The system remains easily extensible
+
+New tool domains can be added simply by creating a new module inside `app/`.
 
 ---
 
 # 🧩 Available Tool Domains
 
-## 💻 Desktop Tools
+The MCP Server exposes three tool domains:
 
-Examples:
+| Domain | Description |
+|------|------|
+| Desktop Tools | Secure file management on Desktop |
+| Expense Tools | Expense tracking and database operations |
+| PDF Tools | PDF document reading, searching, and management |
+
+---
+
+# 💻 Desktop Tools
+
+Handles secure file operations on the Desktop.
+
+### Available Tools
 
 - `read_file`
 - `write_file`
 - `delete_file`
+- `list_files`
 
-Features:
+### Features
 
 - Restricts access to Desktop directory
 - Prevents path traversal (`..`)
 - Allows only `.txt` files
-- Asks permission before deletion
-- Controlled overwrite vs append logic
+- Confirmation required before deletion
+- Safe overwrite vs append logic
 
 Example:
 
 ```python
 @mcp.tool()
 def read_file(path: str) -> str:
-````
+```
 
 ---
 
-## 🗄️ Expense Management Tools
+# 🗄️ Expense Management Tools
 
-Examples:
+Provides structured expense tracking.
 
-* Add expense
-* View expenses
-* Delete expense
+### Available Tools
+
+- `add_expense`
+- `view_expenses`
+- `delete_expense`
+
+### Features
+
+- Structured expense storage
+- Database-backed operations
+- Controlled deletion
+- Safe financial logging
+
+These tools allow AI systems to **track automation costs and financial records**.
+
+---
+
+# 📄 PDF Document Tools
+
+The MCP Server provides advanced **PDF document intelligence tools**.
+
+### Available Tools
+
+- `read_pdf`
+- `search_pdf`
+- `create_pdf`
+- `rename_pdf`
+- `delete_pdf`
+- `find_relevant_pdfs_on_desktop`
+
+---
+
+## 📖 read_pdf
+
+Reads full text from a PDF file.
+
+Example:
+
+```python
+read_pdf("report.pdf")
+```
 
 Features:
 
-* Structured expense storage
-* Database interaction layer
-* Controlled deletion
-* Safe data handling
+- Multi-page extraction
+- Desktop-only file access
+- `.pdf` extension validation
+
+---
+
+## 🔍 search_pdf
+
+Searches a keyword inside a PDF.
+
+Example:
+
+```python
+search_pdf("report.pdf", "revenue")
+```
+
+Features:
+
+- Page-based search
+- Case-insensitive matching
+- Limited output size
+
+---
+
+## 🧾 create_pdf
+
+Creates a new PDF file from provided text.
+
+Example:
+
+```python
+create_pdf("notes.pdf", "AI systems are evolving rapidly.")
+```
+
+Features:
+
+- Automatic `.pdf` extension
+- Prevents overwriting existing files
+- Uses `reportlab` for PDF generation
+
+---
+
+## ✏️ rename_pdf
+
+Renames a PDF file.
+
+Example:
+
+```python
+rename_pdf("report.pdf", "summary.pdf", confirm="RENAME report.pdf")
+```
+
+---
+
+## 🗑️ delete_pdf
+
+Deletes a PDF file.
+
+Example:
+
+```python
+delete_pdf("report.pdf", confirm="DELETE report.pdf")
+```
+
+Deletion requires strict confirmation.
+
+---
+
+## 🔎 find_relevant_pdfs_on_desktop
+
+Searches all PDFs on the Desktop for relevant information.
+
+Example:
+
+```python
+find_relevant_pdfs_on_desktop("machine learning")
+```
 
 ---
 
 # 🔐 Security Design
 
-Security is a core design principle of this server.
+Security is a **core design principle** of this server.
 
-### File Safety
+---
 
-* Base directory restricted (e.g., Desktop)
-* No access outside allowed root
-* Prevents directory traversal
-* Extension filtering (.txt only)
-* Permission confirmation before destructive actions
+## File System Safety
 
-### Execution Safety
+The server enforces strict filesystem protections:
 
-* No shell execution
-* No dynamic code execution
-* No arbitrary OS commands
-* Explicit input validation
+- Desktop-only access
+- Path traversal prevention
+- Extension filtering
+- Confirmation for destructive actions
+
+---
+
+## PDF Safety
+
+Additional safeguards include:
+
+- `.pdf` extension validation
+- Controlled rename and deletion
+- No overwrite during creation
+
+---
+
+## Execution Safety
+
+The server prevents unsafe operations:
+
+- No shell execution
+- No dynamic code execution
+- No arbitrary OS commands
 
 ---
 
 # ⚙️ Tool Registration
 
-Tools are registered using:
+Tools are registered using **FastMCP**.
+
+Example:
 
 ```python
 from fastmcp import FastMCP
 
-mcp = FastMCP("desktop_control")
-
-@mcp.tool()
-def write_file(...):
+server = FastMCP("ExpenseTracker")
 ```
 
-The server is started with:
+Each tool module registers its tools with the MCP server.
+
+---
+
+# 🚀 Server Initialization
+
+### main.py
 
 ```python
+from fastmcp import FastMCP
+
+from app.expense_tools import register_tools
+from app.desktop_tools import desktop_tools_func
+from app.pdf_tools import pdf_tools_func
+
+server = FastMCP("ExpenseTracker")
+
+desktop_tools_func(server)
+register_tools(server)
+pdf_tools_func(server)
+
 if __name__ == "__main__":
-    mcp.run()
+    server.run()
 ```
+
+This modular initialization enables:
+
+- Domain-based tool separation
+- Easier maintenance
+- Scalable tool expansion
 
 ---
 
@@ -139,64 +335,40 @@ Using FastMCP:
 fastmcp run main.py --no-banner
 ```
 
-Or in development mode:
+Development mode:
 
 ```bash
 fastmcp dev main.py
 ```
 
-The server communicates via stdio transport.
-
----
-
-# 🧠 MCP Protocol
-
-The server follows the Model Context Protocol standard:
-
-* JSON-based structured communication
-* Tool discovery support
-* Async-compatible
-* Session-based lifecycle
-
-It does not manage memory, conversation, or AI reasoning.
-
----
-
-# 📦 Project Structure
-
-```
-main.py
-│
-├── resolve_path()
-├── read_file()
-├── write_file()
-├── delete_file()
-└── mcp.run()
-```
-
-Each tool is modular and independently callable.
+The server communicates using **stdio transport**.
 
 ---
 
 # 🔄 Interaction Flow
 
-1. MCP Client connects via stdio.
-2. Client retrieves available tools.
-3. LLM selects appropriate tool.
-4. Tool executes inside MCP Server.
-5. Result returned to client.
-6. Client generates final AI response.
+1️⃣ MCP Client connects to the MCP Server.
+
+2️⃣ Client retrieves available tools.
+
+3️⃣ LLM selects the appropriate tool.
+
+4️⃣ Tool executes inside the MCP Server.
+
+5️⃣ Result returned to client.
+
+6️⃣ Client generates final AI response.
 
 ---
 
 # 📈 Design Principles
 
-* Strict validation
-* Controlled file system access
-* Domain-based tool grouping
-* Async-compatible architecture
-* Separation of concerns
-* Production-ready structure
+- Modular tool architecture
+- Strict input validation
+- Controlled filesystem access
+- Domain-based tool grouping
+- Separation of AI and execution layers
+- Production-ready system design
 
 ---
 
@@ -204,16 +376,17 @@ Each tool is modular and independently callable.
 
 This server is built with:
 
-* Security-first mindset
-* Modular architecture
-* Clear boundaries between AI and execution
-* MCP protocol compliance
-* Scalable multi-tool support
+- Security-first architecture
+- Clear separation between reasoning and execution
+- MCP protocol compliance
+- Scalable multi-tool support
+- Clean modular design
 
 ---
+
 # 👨‍💻 Author
 
-Umer Rafiq
+**Umer Rafiq**
 
 ---
 
@@ -221,11 +394,6 @@ Umer Rafiq
 
 This MCP Server works together with:
 
-- 🧠 **MCP Client (Async Orchestration Layer)**  
-  https://github.com/umerrafiq04/MCP_CLIENT
+### 🎨 Frontend + FastAPI Layer
 
-- 🎨 **Frontend + FastAPI Layer**  
-  https://github.com/umerrafiq04/MCP_CLIENT_-_FRONTEND
-
----
-
+https://github.com/umerrafiq04/MCP_CLIENT_-_FRONTEND
